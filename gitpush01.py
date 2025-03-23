@@ -1,81 +1,77 @@
-import subprocess
 import os
+import subprocess
 from datetime import datetime
 
-def run_git_command(command, check=True):
-    result = subprocess.run(command, shell=True, text=True, capture_output=True)
-    if check and result.returncode != 0:
-        raise Exception(f"Git command failed: {result.stderr}")
-    return result
+def is_git_repo():
+    return os.path.isdir(".git")
 
-def get_current_date():
-    return datetime.now().strftime("%y-%m-%d")
-
-def get_local_branches():
-    result = run_git_command("git branch")
-    branches = [branch.strip().replace("*", "").strip() for branch in result.stdout.splitlines()]
+def get_branches():
+    result = subprocess.run(["git", "branch"], capture_output=True, text=True)
+    branches = [line.strip()[2:] if line.startswith("*") else line.strip() for line in result.stdout.splitlines()]
     return branches
 
-def has_unstaged_changes():
-    result = run_git_command("git status --porcelain", check=False)
-    return bool(result.stdout.strip())
+def get_current_branch():
+    result = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True)
+    return result.stdout.strip()
 
-def commit_changes(branch, date):
-    if has_unstaged_changes():
-        print(f"[{branch}] Adding and committing changes...")
-        run_git_command("git add .")
-        run_git_command(f'git commit -m "{date}"')
-    else:
-        print(f"[{branch}] No changes to commit.")
+def display_branches(branches):
+    print("当前分支列表：")
+    for i, branch in enumerate(branches):
+        print(f"{i}. {branch}")
+
+def commit_current_branch():
+    date_str = datetime.now().strftime("%y-%m-%d")
+    print("正在提交当前分支...")
+    subprocess.run(["git", "add", "."])
+    subprocess.run(["git", "commit", "-m", f"提交日期：{date_str}"])
+    print("提交完成！")
+
+def push_branches(selected_branches, all_branches):
+    for idx in selected_branches:
+        branch = all_branches[idx]
+        print(f"正在推送分支 {branch} 到远程仓库...")
+        subprocess.run(["git", "push", "origin", branch])
+        print(f"分支 {branch} 推送完成！")
 
 def main():
-    # Ensure we're in a git repository
-    if not os.path.exists(".git"):
-        print("Error: This directory is not a Git repository.")
+    if not is_git_repo():
+        print("错误：当前目录不是 Git 仓库！")
         return
 
-    # Get current date for commit messages
-    date = get_current_date()
-    print(f"Starting process on {date}...")
-
-    # Get all local branches
-    branches = get_local_branches()
-    print(f"Found branches: {', '.join(branches)}")
-
-    # Process each branch
-    for branch in branches:
-        print(f"\nProcessing branch: {branch}")
+    while True:
+        branches = get_branches()
+        display_branches(branches)
         
-        # Checkout branch
-        print(f"[{branch}] Switching to branch...")
-        run_git_command(f"git checkout {branch}")
-
-        # Initial commit of any changes
-        commit_changes(branch, date)
-
-        # Pull from remote
-        print(f"[{branch}] Pulling from remote...")
-        pull_result = run_git_command("git pull origin " + branch, check=False)
-
-        if pull_result.returncode != 0:
-            # Check for conflicts
-            conflict_check = run_git_command("git diff --name-only --diff-filter=U", check=False)
-            if conflict_check.stdout.strip():
-                conflicting_files = conflict_check.stdout.strip().splitlines()
-                print(f"[{branch}] Conflict detected in files: {', '.join(conflicting_files)}")
-                print(f"[{branch}] Please resolve conflicts manually and rerun the script.")
-                return
+        current_branch = get_current_branch()
+        print(f"当前分支：{current_branch}")
+        
+        choice = input("是否提交当前分支？(y/n)：").lower()
+        if choice == 'y':
+            commit_current_branch()
+        
+        selection = input("请选择要推送的分支序号（例如：1 或 1,2 或 all）：").strip()
+        if not selection:
+            retry = input("是否返回刷新分支？(y/n)：").lower()
+            if retry == 'y':
+                continue
             else:
-                print(f"[{branch}] Pull failed for another reason: {pull_result.stderr}")
-                return
-
-        # If pull succeeded, commit any new changes and push
-        commit_changes(branch, date)
-        print(f"[{branch}] Pushing to remote...")
-        run_git_command("git push origin " + branch)
-        print(f"[{branch}] Successfully updated and pushed.")
-
-    print("\nAll branches processed successfully!")
+                print("操作结束。")
+                break
+        
+        if selection.lower() == "all":
+            selected_indices = list(range(len(branches)))
+        else:
+            selected_indices = [int(x.strip()) for x in selection.split(",") if x.strip().isdigit()]
+            if not all(0 <= i < len(branches) for i in selected_indices):
+                print("错误：无效的分支序号！")
+                continue
+        
+        push_branches(selected_indices, branches)
+        
+        retry = input("是否返回刷新分支？(y/n)：").lower()
+        if retry != 'y':
+            print("操作结束。")
+            break
 
 if __name__ == "__main__":
     main()

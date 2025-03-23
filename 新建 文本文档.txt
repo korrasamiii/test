@@ -1,0 +1,12 @@
+第一次使用开源的douyin-downloader下载抖音视频
+
+记录遇到的几个问题：
+1. 运行命令行出现错误，发现是缺少必要的依赖库tqdm显示进度条用的 `pip install tqdm`
+2. 在配置文件config.yml中编辑抖音登录后的cookie，获取键值对cookies:        msToken: xxxxx  ttwid: xxxxx   odin_tt: xxxxxx
+- 刷新网页-F12-network-F5刷新网页-下方左侧出现的第一条请求，点击-点击header-找到request header-在里面找到ttwid: xxxxx   odin_tt: xxxxxx
+- 在刷新网页-F12-Application-storage-local storage-找到msToken
+3. 删除配置文件config.yml中的cookies注释，可能影响运行
+
+
+
+ 
